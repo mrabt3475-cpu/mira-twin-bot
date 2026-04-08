@@ -1,2 +1,87 @@
-# mira-twin-bot
-Mira Twin Bot - identical to Mira AI assistant - image, music, voice, search, memory, wallet, reminders
+# 🤖 Mira Twin Bot
+
+**نسخة مطابقة من Mira AI Assistant!** 🎯
+
+---
+
+## ✨ الميزات الكاملة
+
+| الميزة | الوصف |
+|--------|-------|
+| 💬 محادثة ذكية | ردود ذكية + OpenAI |
+| 🎨 إنشاء صور | DALL-E AI |
+| 🎵 إنشاء أغاني | موسيقى AI |
+| 🌐 بحث | بحث في الإنترنت |
+| 🎤 صوت | تحويل صوت لنص |
+| 💾 ذاكرة | يتذكر اسمك واهتماماتك |
+| 💰 محفظة | نظام الرصيد والنقاط |
+| ⏰ تذكيرات | تذكيرات متعددة |
+| 👥 مجموعات | ترحيب ووداع |
+| ⚙️ إعدادات | لغة وأسلوب |
+
+---
+
+## 🚀 التثبيت
+
+```bash
+git clone https://github.com/mrabt3475-cpu/mira-twin-bot.git
+cd mira-twin-bot
+pip install -r requirements.txt
+```
+
+## ⚙️ الإعداد
+
+### 1. توكن البوت
+احصل عليه من @BotFather
+
+### 2. المتغيرات
+```bash
+export BOT_TOKEN="توكن_البوت"
+export OPENAI_API_KEY="sk-..."  # اختياري
+```
+
+### 3. التشغيل
+```bash
+python bot.py
+```
+
+---
+
+## 💬 الأوامر
+
+```
+# رسم صورة
+ارسم قطة جميلة
+
+# بحث
+ابحث عن سعر البيتكوين
+
+# أغنية
+gني أغنية فرح
+
+# تذكير
+ذكّرني بـ meeting بعد ساعتين
+
+# تحديث الملف
+اسمي: أحمد
+عمري: 25
+مدينتي: الرياض
+اهتمامي: البرمجة
+```
+
+---
+
+## 🔧 APIs المطلوبة (اختياري)
+
+| الخدمة | الغرض | الرابط |
+|--------|--------|--------|
+| OpenAI | محادثة + صور | platform.openai.com |
+| Google Speech | صوت لنص | cloud.google.com |
+| Eleven Labs | نص لصوت | elevenlabs.io |
+| Suno | أغاني | suno.ai |
+
+---
+
+## 📧 تواصل
+
+@Mohammad4648
