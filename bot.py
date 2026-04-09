@@ -1,6 +1,6 @@
 """
 🤖 Mira Twin Bot - نسخة مطابقة من Mira AI Assistant
-يحتوي على كل الميزات: محادثة، صور، أغاني، صوت، بحث، ذاكرة، محفظة، تذكيرات
+يحتوي على كل الميزات: محادثة، صور، أغاني، صوت، بحث، ذاكرة، محفظة، تذكيرات، توليد أكواد
 """
 
 import os
@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, 
     KeyboardButton, ReplyKeyboardMarkup, BotCommand, InputFile,
-    ChatMemberUpdated
+    ChatMemberUpdated, Document
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler, 
@@ -91,6 +91,7 @@ PERSONALITY = """
 - إنشاء أغاني
 - تحويل صوت لنص
 - بحث في الإنترنت
+- توليد أكواد برمجية
 - إدارة التذكيرات
 - التعامل معcryptocurrency
 - إدارة المجموعات
@@ -102,9 +103,10 @@ def get_main_keyboard():
         [
             [KeyboardButton("💬 محادثة"), KeyboardButton("🎨 رسم")],
             [KeyboardButton("🎵 أغنية"), KeyboardButton("🌐 بحث")],
-            [KeyboardButton("🎤 صوت"), KeyboardButton("💾 ذاكرتي")],
-            [KeyboardButton("💰 محفظتي"), KeyboardButton("⏰ تذكيرات")],
-            [KeyboardButton("👤 ملفي"), KeyboardButton("⚙️ إعدادات")]
+            [KeyboardButton("🖥️ كود"), KeyboardButton("🎤 صوت")],
+            [KeyboardButton("💾 ذاكرتي"), KeyboardButton("💰 محفظتي")],
+            [KeyboardButton("⏰ تذكيرات"), KeyboardButton("👤 ملفي")],
+            [KeyboardButton("⚙️ إعدادات")]
         ],
         resize_keyboard=True
     )
@@ -114,6 +116,17 @@ def get_settings_keyboard():
         [
             [KeyboardButton("🇸🇦 العربية"), KeyboardButton("🇺🇸 English")],
             [KeyboardButton("😊 ودود"), KeyboardButton("🤖 رسمي")],
+            [KeyboardButton("🔙 رجوع")]
+        ],
+        resize_keyboard=True
+    )
+
+def get_code_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("🐍 Python"), KeyboardButton("📜 JavaScript")],
+            [KeyboardButton("🌐 HTML/CSS"), KeyboardButton("💾 SQL")],
+            [KeyboardButton("🔧 Bash"), KeyboardButton("📱 Flutter")],
             [KeyboardButton("🔙 رجوع")]
         ],
         resize_keyboard=True
@@ -135,11 +148,6 @@ async def chat_ai(message, user_data):
         return get_fallback_response(message)
     
     try:
-        context = PERSONALITY + f"\n\nاسم المستخدم: {user_data.get('name', 'غير معروف')}\n"
-        if user_data.get('interests'):
-            context += f"اهتماماته: {', '.join(user_data['interests'])}\n"
-        context += f"\nالمستخدم: {message}\n\nMira:"
-        
         headers = {
             'Authorization': f'Bearer {OPENAI_API_KEY}',
             'Content-Type': 'application/json'
@@ -169,43 +177,70 @@ async def chat_ai(message, user_data):
     
     return get_fallback_response(message)
 
-def get_fallback_response(message):
-    """ردود ذكية بدون OpenAI"""
-    msg = message.lower()
+# ============== CODE GENERATION ==============
+async def generate_code(prompt, language="python"):
+    """توليد أكواد برمجية"""
+    if not OPENAI_API_KEY:
+        return get_fallback_code(language, prompt)
     
-    # التحيات
-    if any(w in msg for w in ['مرحبا', 'اهلا', 'hello', 'hi', 'السلام', 'hey']):
-        return "أهلاً! 👋 كيف أقدر أساعدك اليوم؟"
+    language_names = {
+        'python': 'Python',
+        'javascript': 'JavaScript',
+        'html': 'HTML/CSS',
+        'sql': 'SQL',
+        'bash': 'Bash/Shell',
+        'flutter': 'Flutter/Dart'
+    }
     
-    # شكر
-    if any(w in msg for w in ['شكرا', 'thanks', 'thank', 'شكر']):
-        return "العفو! 😊 أي وقت محتاجني"
+    system_prompt = f"""أنت مبرمج محترف. اكتب كود {language_names.get(language, language)} نظيف ومُوثق.
+
+القواعد:
+1. الكود يكون كامل ومُشتغل
+2. أضف تعليقات بالعربية
+3. استخدم أفضل الممارسات
+4. إذا كان المشروع كبير، اكتب هيكل الملفات
+5. أخرج الكود فقط بدون شرح طويل
+6. استخدم ```code blocks```
+
+إذا كان طلب مشروع كامل:
+- اكتب هيكل الملفات
+- اكتب كل ملف بالكود الكامل
+- وضّح طريقة التشغيل
+"""
     
-    # من أنا
-    if any(w in msg for w in ['من انت', 'who are you', 'مني', 'ما اسمك']):
-        return "أنا **Mira** - مساعدك الذكي! 🤖✨\n\nيمكنني:\n💬 محادثة\n🎨 رسم\n🎵 أغنية\n🌐 بحث\n🎤 صوت\n💾 ذاكرة\n💰 محفظة\n⏰ تذكيرات"
+    try:
+        headers = {
+            'Authorization': f'Bearer {OPENAI_API_KEY}',
+            'Content-Type': 'application/json'
+        }
+        payload = {
+            'model': 'gpt-3.5-turbo',
+            'messages': [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': prompt}
+            ],
+            'max_tokens': 4000,
+            'temperature': 0.7
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                'https://api.openai.com/v1/chat/completions',
+                headers=headers,
+                json=payload,
+                timeout=60
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    return result['choices'][0]['message']['content']
+    except Exception as e:
+        pass
     
-    # كيف حالك
-    if 'كيف' in msg and ('حالك' in msg or 'خويك' in msg):
-        return "الحمد لله بخير! 😊 وأنت؟"
-    
-    # أسئلة عن القدرة
-    if any(w in msg for w in ['можешь', 'can you', 'تستطيع', 'قدر']):
-        return "نعم! أستطيع:\n💬 محادثة ذكية\n🎨 إنشاء صور\n🎵 إنشاء أغاني\n🌐 البحث\n🎤 تحويل صوت لنص\n⏰ تذكيرات\n💾 تذكر معلوماتك\n\n.just ask!"
-    
-    # ردود عشوائية ذكية
-    import random
-    responses = [
-        "🤔 فكرة ممتازة! Tell me more",
-        "💡 ممتاز! أشرح لك أكثر؟",
-        "🔥 أحب هذه الفكرة!",
-        "😅 معك حق!",
-        "✨ سأساعدك في هذا!",
-        "👍 تمام، فهمتك!",
-        "🌟 سؤال ذكي!",
-        "📝 أكتب لك التفاصيل؟",
-    ]
-    return random.choice(responses)
+    return get_fallback_code(language, prompt)
+
+def get_fallback_code(language, prompt):
+    """ردود أكواد بدون OpenAI"""
+    return f"⚠️ **مطلوب OpenAI API**\n\nللحصول على كود {language}، يجب إضافة OpenAI API Key.\n\n📧 تواصل مع المطور لإضافة API Key."
 
 # ============== IMAGE GENERATION ==============
 async def generate_image(prompt, style="anime"):
@@ -248,7 +283,6 @@ async def generate_image(prompt, style="anime"):
 # ============== MUSIC GENERATION ==============
 async def generate_music(prompt, duration=15):
     """إنشاء موسيقى - يتطلب API خاص"""
-    # Placeholder - يتطلب Suno أو similar API
     return f"🎵 جاري إنشاء الموسيقى...\n\nالوصف: {prompt}\n\nالمدة: {duration}s\n\n⚠️ يتطلب إعداد API خاص (Suno/AudioGen)"
 
 # ============== VOICE FUNCTIONS ==============
@@ -315,7 +349,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = f"""✨ **أهلاً {user.first_name}!**
 
 أنا **Mira** - مساعدك الذكي! 🤖💕
-\n\n💬 محادثة ذكية\n🎨 إنشاء صور\n🎵 إنشاء أغاني\n🌐 بحث في الإنترنت\n🎤 رسائل صوتية\n💾 أتذكر معلوماتك\n💰 محفظة\n⏰ تذكيرات\n👥 إدارة المجموعات\n\n🎯 ابدأ محادثة أو اختر من الأزرار!
+\n\n💬 محادثة ذكية\n🎨 إنشاء صور\n🎵 إنشاء أغاني\n🌐 بحث في الإنترنت\n🖥️ توليد أكواد برمجية\n🎤 رسائل صوتية\n💾 أتذكر معلوماتك\n💰 محفظة\n⏰ تذكيرات\n👥 إدارة المجموعات\n\n🎯 ابدأ محادثة أو اختر من الأزرار!
 """
     
     await update.message.reply_text(welcome, reply_markup=get_main_keyboard())
@@ -323,7 +357,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """🔧 **الأوامر:**
 
-/start - بدء البوت\n/help - المساعدة\n/balance - الرصيد\n/profile - ملفي\n/reminders - تذكيراتي\n/clear - مسح المحادثة\n\n\n💡 **أمثلة:**\n• ارسم قطة جميلة\n• ابحث عن سعر البيتكوين\n• غني لي أغنية فرح\n• ذكّرني بـ meeting غداً\n• اسمي: أحمد"""
+/start - بدء البوت\n/help - المساعدة\n/balance - الرصيد\n/profile - ملفي\n/reminders - تذكيراتي\n/clear - مسح المحادثة\n\n\n💡 **أمثلة:**
+• ارسم قطة جميلة\n• ابحث عن سعر البيتكوين\n• غني لي أغنية فرح\n• ذكّرني بـ meeting غداً\n• اكتب بوت تليجرام\n• اسمي: أحمد"""
     await update.message.reply_text(help_text)
 
 async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -383,6 +418,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🌐 اكتب ما تبحث عنه!\n\nمثال: سعر البيتكوين", reply_markup=get_main_keyboard())
         return
     
+    if text == "🖥️ كود":
+        await update.message.reply_text("🖥️ **توليد أكواد برمجية**\n\nاختر اللغة أو اكتب طلبك!\n\nمثال:\n• اكتب بوت تليجرام\n• صمم موقع portfolio\n• اكتب سكريبت backup\n• أنشئ قاعدة بيانات users", reply_markup=get_code_keyboard())
+        return
+    
     if text == "🎤 صوت":
         await update.message.reply_text("🎤 أرسل رسالة صوتية!\n\nسأحولها لنص 🔊", reply_markup=get_main_keyboard())
         return
@@ -409,6 +448,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text == "🔙 رجوع":
         await update.message.reply_text("🔙 رجوع", reply_markup=get_main_keyboard())
+        return
+    
+    # ============== لغات البرمجة ==============
+    if text == "🐍 Python":
+        await update.message.reply_text("🐍 **Python**\n\nاكتب ما تبي:\n• اكتب دالة حساب\n• صمم بوت تليجرام\n• أنشئ website\n• اكتب algorithm", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "📜 JavaScript":
+        await update.message.reply_text("📜 **JavaScript**\n\nاكتب ما تبي:\n• صمم موقع\n• أنشئ API\n• اكتب function\n• صمم game", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "🌐 HTML/CSS":
+        await update.message.reply_text("🌐 **HTML/CSS**\n\nاكتب ما تبي:\n• صمم صفحة login\n• أنشئ portfolio\n• اكتب landing page\n• صمم dashboard", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "💾 SQL":
+        await update.message.reply_text("💾 **SQL**\n\nاكتب ما تبي:\n• أنشئ قاعدة بيانات\n• اكتب جدول users\n• صمم استعلام\n• أنشئ schema", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "🔧 Bash":
+        await update.message.reply_text("🔧 **Bash**\n\nاكتب ما تبي:\n• سكريبت backup\n• أوتوميشن\n• سكريبت deploy\n• تنظيف الملفات", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "📱 Flutter":
+        await update.message.reply_text("📱 **Flutter**\n\nاكتب ما تبي:\n• تطبيق todo list\n• شاشة login\n• تطبيق weather\n• واجهة مستخدم", reply_markup=get_code_keyboard())
         return
     
     # ============== إعدادات اللغة ==============
@@ -495,6 +559,48 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ اكتب نص التذكير\nمثال: ذكّرني بـ meeting بعد ساعتين")
         return
     
+    # ============== توليد الأكواد ==============
+    # كلمات مفتاحية لتوليد الأكواد
+    code_keywords = [
+        "اكتب", "صمم", "أنشئ", "write", "create", "design", 
+        "برمجة", "كود", "code", "program", "script", "function",
+        "موقع", "website", "web", "بوت", "bot", "تطبيق", "app",
+        "database", "قاعدة", "بيانات", "sql", "python", "javascript",
+        "html", "css", "flutter", "bash", "shell", "api", "اندرويد",
+        "ios", "mobile", "game", "لعبة", "algorithm", "خوارزمية"
+    ]
+    
+    is_code_request = any(k in text.lower() for k in code_keywords)
+    
+    if is_code_request:
+        await update.message.reply_text("🖥️ جاري توليد الكود...\n\nقد يستغرق ثواني...")
+        
+        # تحديد اللغة
+        language = "python"
+        if any(k in text.lower() for k in ["javascript", "js", "node"]):
+            language = "javascript"
+        elif any(k in text.lower() for k in ["html", "css", "website", "موقع"]):
+            language = "html"
+        elif any(k in text.lower() for k in ["sql", "database", "قاعدة", "بيانات"]):
+            language = "sql"
+        elif any(k in text.lower() for k in ["bash", "shell", "linux"]):
+            language = "bash"
+        elif any(k in text.lower() for k in ["flutter", "dart", "mobile", "تطبيق", "اندرويد", "ios"]):
+            language = "flutter"
+        
+        code_result = await generate_code(text, language)
+        
+        # إرسال الكود
+        if len(code_result) > 4000:
+            # إذا كان الكود طويل، أرسل كملف
+            await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n📁 الكود طويل جداً، يُرسَل كملف...")
+            await update.message.reply_text(code_result)
+        else:
+            await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n{code_result}")
+        
+        await update.message.reply_text("✅ هل تريد تعديل أو إضافة؟ 💡")
+        return
+    
     # ============== محادثة ذكية ==============
     await update.message.reply_text("🤖 جاري التفكير...")
     response = await chat_ai(text, user_data)
@@ -567,7 +673,7 @@ def main():
         BotCommand("clear", "مسح"),
     ])
     
-    print("🤖 Mira Twin Bot يعمل...")
+    print("🤖 Mira Twin Bot مع توليد الأكواد يعمل...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
