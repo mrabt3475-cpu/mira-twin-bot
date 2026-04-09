@@ -1,33 +1,18 @@
-# 🤖 Mira Twin Bot
+# Mira Twin Bot
 
-نسخة مطابقة من Mira AI Assistant مع كل الميزات والتقنيات المتقدمة.
+🤖 **Mira Twin Bot** - بوت تليجرام متكامل بالذكاء الاصطناعي
 
 ## ✨ الميزات
 
 | الميزة | الوصف |
 |--------|-------|
-| 💬 محادثة ذكية | OpenAI + نماذج متعددة |
-| 🎨 تصميم Canva | إنشاء تصاميم برمجياً |
-| 🖥️ أكواد متعددة النماذج | GPT-4, Claude, Gemini |
-| 📂 GitHub | إنشاء مستودعات ومشاريع |
-| 🎮 ألعاب | تخمين الرقم، حجر ورق مقص |
-| 📝 ملاحظات | حفظ واسترجاع |
-| 🌎 ترجمة | ترجمة النصوص |
-| ⏰ تذكيرات | نظام تذكيرات |
-| 📊 نظام المستويات | XP و Levels |
-| 🏆 تحديات يومية | تحديات برمجية |
-
-## 📁 الملفات
-
-```
-mira-twin-bot/
-├── bot.py                  # الملف الرئيسي
-├── canva_integration.py    # تكامل Canva
-├── multi_model.py          # نماذج برمجة متعددة
-├── smart_router.py         # التوجيه الذكي
-├── requirements.txt        # المتطلبات
-└── README.md              # هذا الملف
-```
+| 🎨 صور بالذكاء الاصطناعي | إنشاء صور مذهلة |
+| 🎵 موسيقى وأغاني | تحويل النصوص لأغاني |
+| 🎤 تحويل نص لصوت | Text to Speech |
+| 🔍 بحث في الإنترنت | Google Search |
+| 💰 نظام النقاط | إحالة، عمولات، متجر |
+| 🎮 ألعاب | أرقام، حجرة ورقة مقص |
+| 💳 محفظة TON | دفع وتحويل |
 
 ## 🚀 التثبيت
 
@@ -36,86 +21,31 @@ mira-twin-bot/
 git clone https://github.com/mrabt3475-cpu/mira-twin-bot.git
 cd mira-twin-bot
 
-# إنشاء بيئة
+# إنشاء بيئة افتراضية
 python -m venv venv
-source venv/bin/activate  # Linux
-# venv\Scripts\activate  # Windows
+source venv/bin/activate
 
 # تثبيت المتطلبات
 pip install -r requirements.txt
+
+# إنشاء ملف .env
+cp .env.example .env
+
+# تشغيل البوت
+python main.py
 ```
 
 ## ⚙️ الإعدادات
 
-أنشئ ملف `.env` وأضف:
-
-```bash
-# التوكن الأساسي
-BOT_TOKEN=your_bot_token
-
-# OpenAI (للأكواد والصور)
-OPENAI_API_KEY=sk-your-key
-
-# GitHub (للمستودعات)
-GITHUB_TOKEN=ghp_your-token
-
-# Canva (للتصميم)
-CANVA_API_KEY=your-canva-key
-CANVA_CLIENT_ID=your-client-id
-CANVA_CLIENT_SECRET=your-client-secret
-
-# Claude (للإبداع)
-ANTHROPIC_API_KEY=sk-ant-your-key
-
-# Google AI (للنصوص)
-GOOGLE_API_KEY=your-google-key
-
-# الأدمن
-ADMIN_ID=your-telegram-id
+```env
+BOT_TOKEN=
+ADMIN_IDS=
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GOOGLE_API_KEY=
+TON_WALLET=
 ```
 
-## 🎮 الأوامر
+## 📜 الرخصة
 
-| الأمر | الوصف |
-|-------|-------|
-| /start | بدء البوت |
-| /help | المساعدة |
-| /balance | الرصيد |
-| /profile | ملفي |
-| /reminders | تذكيراتي |
-| /notes | ملاحظاتي |
-| /challenge | تحدي يومي |
-
-## 💡 أمثلة الاستخدام
-
-```
-• ارسم قطة جميلة
-• اكتب بوت تليجرام
-• أنشئ مشروع موقع portfolio متكامل
-• ترجم Hello للعربية
-• ابحث عن سعر البيتكوين
-• ذكّرني بـ meeting غداً
-• سجّل ملاحظة: عنوان - محتوى
-• تصميم بوست لعيد ميلاد
-```
-
-## 🔧 نماذج البرمجة
-
-| النموذج | الاستخدام |
-|---------|----------|
-| GPT-4 | مشاريع معقدة |
-| GPT-3.5 | كود بسيط |
-| Claude | إبداع وتحليل |
-| Gemini | بحث وتوثيق |
-
-## 🌐 رابط المشروع
-
-👉 [https://github.com/mrabt3475-cpu/mira-twin-bot](https://github.com/mrabt3475-cpu/mira-twin-bot)
-
-## 📝 الترخيص
-
-MIT License
-
----
-
-**Mira Twin Bot** - مساعدك الذكي! 🤖✨
+MIT
