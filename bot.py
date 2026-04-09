@@ -1,6 +1,6 @@
 """
 🤖 Mira Twin Bot - نسخة مطابقة من Mira AI Assistant
-يحتوي على كل الميزات: محادثة، صور، أغاني، صوت، بحث، ذاكرة، محفظة، تذكيرات، توليد أكواد
+يحتوي على كل الميزات: محادثة، صور، أغاني، صوت، بحث، ذاكرة، محفظة، تذكيرات، توليد أكواد، GitHub
 """
 
 import os
@@ -10,6 +10,7 @@ import aiohttp
 import requests
 import base64
 import hashlib
+import re
 from datetime import datetime, timedelta
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, 
@@ -24,6 +25,7 @@ from telegram.ext import (
 # ============== CONFIGURATION ==============
 BOT_TOKEN = os.getenv('BOT_TOKEN', 'YOUR_BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
 ADMIN_ID = int(os.getenv('ADMIN_ID', '0'))
 
 # ============== DATA STORAGE ==============
@@ -57,6 +59,7 @@ def get_user(user_id):
             'balance': 100,
             'language': 'ar',
             'style': 'friendly',
+            'github_token': '',
             'created_at': datetime.now().isoformat()
         }
     return data['users'][uid]
@@ -92,6 +95,7 @@ PERSONALITY = """
 - تحويل صوت لنص
 - بحث في الإنترنت
 - توليد أكواد برمجية
+- إنشاء مستودعات GitHub
 - إدارة التذكيرات
 - التعامل معcryptocurrency
 - إدارة المجموعات
@@ -103,10 +107,10 @@ def get_main_keyboard():
         [
             [KeyboardButton("💬 محادثة"), KeyboardButton("🎨 رسم")],
             [KeyboardButton("🎵 أغنية"), KeyboardButton("🌐 بحث")],
-            [KeyboardButton("🖥️ كود"), KeyboardButton("🎤 صوت")],
-            [KeyboardButton("💾 ذاكرتي"), KeyboardButton("💰 محفظتي")],
-            [KeyboardButton("⏰ تذكيرات"), KeyboardButton("👤 ملفي")],
-            [KeyboardButton("⚙️ إعدادات")]
+            [KeyboardButton("🖥️ كود"), KeyboardButton("📂 GitHub")],
+            [KeyboardButton("🎤 صوت"), KeyboardButton("💾 ذاكرتي")],
+            [KeyboardButton("💰 محفظتي"), KeyboardButton("⏰ تذكيرات")],
+            [KeyboardButton("👤 ملفي"), KeyboardButton("⚙️ إعدادات")]
         ],
         resize_keyboard=True
     )
@@ -132,6 +136,16 @@ def get_code_keyboard():
         resize_keyboard=True
     )
 
+def get_github_keyboard():
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("📁 مستودعي"), KeyboardButton("➕ مستودع جديد")],
+            [KeyboardButton("📤 رفع ملفات"), KeyboardButton("🔗 رابط مشروع")],
+            [KeyboardButton("🔙 رجوع")]
+        ],
+        resize_keyboard=True
+    )
+
 def get_image_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🎨 أنمي", callback_data="style_anime")],
@@ -140,6 +154,181 @@ def get_image_keyboard():
         [InlineKeyboardButton("🎭 فني", callback_data="style_artistic")],
         [InlineKeyboardButton("🔙 رجوع", callback_data="back")]
     ])
+
+# ============== GITHUB FUNCTIONS ==============
+async def github_create_repo(name, description="", private=False):
+    """إنشاء مستودع GitHub"""
+    if not GITHUB_TOKEN:
+        return None, "⚠️ مطلوب GitHub Token! أضفه في متغير GITHUB_TOKEN"
+    
+    url = "https://api.github.com/user/repos"
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    data = {
+        'name': name,
+        'description': description,
+        'private': private,
+        'auto_init': True
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=data, headers=headers) as resp:
+                if resp.status == 201:
+                    result = await resp.json()
+                    return result, "✅ تم إنشاء المستودع!"
+                elif resp.status == 422:
+                    return None, "⚠️ المستودع موجود مسبقاً!"
+                else:
+                    error = await resp.text()
+                    return None, f"❌ خطأ: {error}"
+    except Exception as e:
+        return None, f"❌ خطأ في الاتصال: {str(e)}"
+
+async def github_upload_file(repo, path, content, message="Upload file"):
+    """رفع ملف إلى مستودع GitHub"""
+    if not GITHUB_TOKEN:
+        return None, "⚠️ مطلوب GitHub Token!"
+    
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    
+    # تحويل المحتوى لـ base64
+    if isinstance(content, str):
+        content = content.encode('utf-8')
+    content_b64 = base64.b64encode(content).decode('utf-8')
+    
+    data = {
+        'message': message,
+        'content': content_b64
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.put(url, json=data, headers=headers) as resp:
+                if resp.status in [201, 200]:
+                    result = await resp.json()
+                    return result, "✅ تم رفع الملف!"
+                else:
+                    error = await resp.text()
+                    return None, f"❌ خطأ: {error}"
+    except Exception as e:
+        return None, f"❌ خطأ: {str(e)}"
+
+async def github_get_repos():
+    """جلب مستودعات المستخدم"""
+    if not GITHUB_TOKEN:
+        return None, "⚠️ مطلوب GitHub Token!"
+    
+    url = "https://api.github.com/user/repos?per_page=100"
+    headers = {
+        'Authorization': f'token {GITHUB_TOKEN}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    repos = await resp.json()
+                    return repos, "✅"
+                else:
+                    return None, "❌ خطأ في جلب المستودعات"
+    except Exception as e:
+        return None, f"❌ خطأ: {str(e)}"
+
+async def github_create_project(user_prompt, code_content, repo_name):
+    """إنشاء مشروع كامل على GitHub"""
+    if not GITHUB_TOKEN:
+        return None, "⚠️ مطلوب GitHub Token!"
+    
+    # إنشاء المستودع
+    repo_info, msg = await github_create_repo(repo_name, f"مشروع: {user_prompt}", False)
+    if repo_info is None:
+        return None, msg
+    
+    # تحليل الكود وتوزيعه على ملفات
+    files = parse_code_to_files(code_content)
+    
+    results = []
+    for file_path, content in files.items():
+        result, msg = await github_upload_file(
+            repo_info['full_name'], 
+            file_path, 
+            content, 
+            f"Add {file_path}"
+        )
+        if result:
+            results.append(f"✅ {file_path}")
+        else:
+            results.append(f"❌ {file_path}: {msg}")
+    
+    return repo_info, "\n".join(results)
+
+def parse_code_to_files(code_content):
+    """تحليل الكود وتوزيعه على ملفات"""
+    files = {}
+    
+    # إذا كان الكود يحتوي على multiple files
+    if '```' in code_content:
+        # استخراج الملفات
+        blocks = re.findall(r'```(\w+)?\n(.*?)```', code_content, re.DOTALL)
+        
+        if blocks:
+            for lang, content in blocks:
+                # تحديد اسم الملف
+                if 'index' in content.lower() or 'main' in content.lower():
+                    ext = get_extension(lang)
+                    files[f'index{ext}'] = content.strip()
+                elif 'readme' in content.lower():
+                    files['README.md'] = content.strip()
+                elif 'requirements' in content.lower():
+                    files['requirements.txt'] = content.strip()
+                elif 'package' in content.lower():
+                    files['package.json'] = content.strip()
+                elif 'html' in lang.lower():
+                    files['index.html'] = content.strip()
+                elif 'css' in lang.lower():
+                    files['style.css'] = content.strip()
+                elif 'python' in lang.lower():
+                    files['main.py'] = content.strip()
+                elif 'javascript' in lang.lower():
+                    files['app.js'] = content.strip()
+                else:
+                    files[f'main{get_extension(lang)}'] = content.strip()
+        else:
+            # إذا ما فيه blocks، ضع كل شي في main.py
+            files['main.py'] = code_content
+    else:
+        # بدون blocks
+        files['main.py'] = code_content
+    
+    return files
+
+def get_extension(language):
+    """الحصول على امتداد الملف"""
+    extensions = {
+        'python': '.py',
+        'javascript': '.js',
+        'html': '.html',
+        'css': '.css',
+        'sql': '.sql',
+        'bash': '.sh',
+        'flutter': '.dart',
+        'java': '.java',
+        'c': '.c',
+        'cpp': '.cpp',
+        'go': '.go',
+        'rust': '.rs',
+        'ruby': '.rb',
+        'php': '.php'
+    }
+    return extensions.get(language.lower(), '.txt')
 
 # ============== AI FUNCTIONS ==============
 async def chat_ai(message, user_data):
@@ -199,12 +388,13 @@ async def generate_code(prompt, language="python"):
 2. أضف تعليقات بالعربية
 3. استخدم أفضل الممارسات
 4. إذا كان المشروع كبير، اكتب هيكل الملفات
-5. أخرج الكود فقط بدون شرح طويل
-6. استخدم ```code blocks```
+5. أخرج الكود في ```code blocks``` مع تحديد اللغة
+6. اكتب كل ملف منفصل
 
 إذا كان طلب مشروع كامل:
-- اكتب هيكل الملفات
+- اكتب هيكل الملفات كامل
 - اكتب كل ملف بالكود الكامل
+- لا تختصر أي ملف
 - وضّح طريقة التشغيل
 """
     
@@ -240,7 +430,7 @@ async def generate_code(prompt, language="python"):
 
 def get_fallback_code(language, prompt):
     """ردود أكواد بدون OpenAI"""
-    return f"⚠️ **مطلوب OpenAI API**\n\nللحصول على كود {language}، يجب إضافة OpenAI API Key.\n\n📧 تواصل مع المطور لإضافة API Key."
+    return f"⚠️ **مطلوب OpenAI API**\n\nللحصول على كود {language}، يجب إضافة OpenAI API Key."
 
 # ============== IMAGE GENERATION ==============
 async def generate_image(prompt, style="anime"):
@@ -349,7 +539,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome = f"""✨ **أهلاً {user.first_name}!**
 
 أنا **Mira** - مساعدك الذكي! 🤖💕
-\n\n💬 محادثة ذكية\n🎨 إنشاء صور\n🎵 إنشاء أغاني\n🌐 بحث في الإنترنت\n🖥️ توليد أكواد برمجية\n🎤 رسائل صوتية\n💾 أتذكر معلوماتك\n💰 محفظة\n⏰ تذكيرات\n👥 إدارة المجموعات\n\n🎯 ابدأ محادثة أو اختر من الأزرار!
+\n\n💬 محادثة ذكية\n🎨 إنشاء صور\n🎵 إنشاء أغاني\n🌐 بحث في الإنترنت\n🖥️ توليد أكواد برمجية\n📂 GitHub (مستودعات ومشاريع)\n🎤 رسائل صوتية\n💾 أتذكر معلوماتك\n💰 محفظة\n⏰ تذكيرات\n👥 إدارة المجموعات\n\n🎯 ابدأ محادثة أو اختر من الأزرار!
 """
     
     await update.message.reply_text(welcome, reply_markup=get_main_keyboard())
@@ -358,7 +548,7 @@ async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """🔧 **الأوامر:**
 
 /start - بدء البوت\n/help - المساعدة\n/balance - الرصيد\n/profile - ملفي\n/reminders - تذكيراتي\n/clear - مسح المحادثة\n\n\n💡 **أمثلة:**
-• ارسم قطة جميلة\n• ابحث عن سعر البيتكوين\n• غني لي أغنية فرح\n• ذكّرني بـ meeting غداً\n• اكتب بوت تليجرام\n• اسمي: أحمد"""
+• ارسم قطة جميلة\n• ابحث عن سعر البيتكوين\n• غني لي أغنية فرح\n• ذكّرني بـ meeting غداً\n• اكتب بوت تليجرام\n• أنشئ موقع portfolio\n• أنشئ مشروع python متكامل\n• اسمي: أحمد"""
     await update.message.reply_text(help_text)
 
 async def balance_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -419,7 +609,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if text == "🖥️ كود":
-        await update.message.reply_text("🖥️ **توليد أكواد برمجية**\n\nاختر اللغة أو اكتب طلبك!\n\nمثال:\n• اكتب بوت تليجرام\n• صمم موقع portfolio\n• اكتب سكريبت backup\n• أنشئ قاعدة بيانات users", reply_markup=get_code_keyboard())
+        await update.message.reply_text("🖥️ **توليد أكواد برمجية**\n\nاختر اللغة أو اكتب طلبك!\n\nمثال:\n• اكتب بوت تليجرام\n• صمم موقع portfolio\n• أنشئ مشروع python متكامل\n• اكتب سكريبت backup", reply_markup=get_code_keyboard())
+        return
+    
+    if text == "📂 GitHub":
+        if not GITHUB_TOKEN:
+            await update.message.reply_text("⚠️ **GitHub غير مُفعَّل!**\n\nلم يتم ربط GitHub Token. تواصل مع المطور.", reply_markup=get_main_keyboard())
+        else:
+            await update.message.reply_text("📂 **GitHub**\n\nاختر:\n• 📁 مستودعاتي\n• ➕ مستودع جديد\n• 📤 رفع ملفات\n• 🔗 إنشاء مشروع كامل", reply_markup=get_github_keyboard())
         return
     
     if text == "🎤 صوت":
@@ -448,6 +645,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if text == "🔙 رجوع":
         await update.message.reply_text("🔙 رجوع", reply_markup=get_main_keyboard())
+        return
+    
+    # ============== GitHub الأزرار ==============
+    if text == "📁 مستودعي":
+        await update.message.reply_text("📋 جاري جلب المستودعات...")
+        repos, msg = await github_get_repos()
+        if repos:
+            repo_list = "📂 **مستودعاتك:**\n\n"
+            for repo in repos[:10]:
+                repo_list += f"• [{repo['name']}]({repo['html_url']}) - {'🔒 خاص' if repo['private'] else '🌐 عام'}\n"
+            await update.message.reply_text(repo_list)
+        else:
+            await update.message.reply_text(msg)
+        return
+    
+    if text == "➕ مستودع جديد":
+        await update.message.reply_text("➕ **إنشاء مستودع جديد**\n\nاكتب:\n`أنشئ مستودع [اسم المستودع]`\n\nمثال: أنشئ مستودع my-project")
+        return
+    
+    if text == "📤 رفع ملفات":
+        await update.message.reply_text("📤 **رفع ملفات**\n\nاكتب:\n`ارفع [اسم الملف] [المحتوى]`\n\nأو أرسل الكود مباشرة مع طلب الرفع!")
+        return
+    
+    if text == "🔗 رابط مشروع":
+        await update.message.reply_text("🔗 **إنشاء مشروع كامل**\n\nاكتب:\n`أنشئ مشروع [الوصف]`\n\nمثال: أنشئ مشروع بوت تليجرام متكامل")
         return
     
     # ============== لغات البرمجة ==============
@@ -559,20 +781,69 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ اكتب نص التذكير\nمثال: ذكّرني بـ meeting بعد ساعتين")
         return
     
+    # ============== GitHub الأوامر ==============
+    # إنشاء مستودع
+    if text.startswith("أنشئ مستودع ") or text.startswith("create repo "):
+        repo_name = text.replace("أنشئ مستودع ", "").replace("create repo ", "").strip()
+        # تنظيف الاسم
+        repo_name = re.sub(r'[^a-zA-Z0-9_-]', '-', repo_name).lower()
+        
+        await update.message.reply_text(f"📋 جاري إنشاء المستودع: {repo_name}...")
+        result, msg = await github_create_repo(repo_name, f"مستودع: {repo_name}", False)
+        
+        if result:
+            await update.message.reply_text(f"✅ **تم إنشاء المستودع!**\n\n📁 [{result['name']}]({result['html_url']})\n\n🌐 {result['clone_url']}")
+        else:
+            await update.message.reply_text(msg)
+        return
+    
+    # إنشاء مشروع كامل
+    if text.startswith("أنشئ مشروع ") or text.startswith("create project "):
+        project_desc = text.replace("أنشئ مشروع ", "").replace("create project ", "").strip()
+        
+        await update.message.reply_text(f"🔨 جاري إنشاء المشروع: {project_desc}...\n\nقد يستغرق دقيقة...")
+        
+        # تحديد اللغة
+        language = "python"
+        if any(k in project_desc.lower() for k in ["javascript", "js", "node"]):
+            language = "javascript"
+        elif any(k in project_desc.lower() for k in ["html", "css", "website", "موقع"]):
+            language = "html"
+        elif any(k in project_desc.lower() for k in ["flutter", "mobile", "تطبيق"]):
+            language = "flutter"
+        
+        # توليد الكود
+        code_result = await generate_code(project_desc, language)
+        
+        # إنشاء اسم المستودع
+        import time
+        repo_name = f"{project_desc.replace(' ', '-').lower()}-{int(time.time())}"
+        
+        # إنشاء المشروع
+        repo_info, result_msg = await github_create_project(project_desc, code_result, repo_name)
+        
+        if repo_info:
+            await update.message.reply_text(f"✅ **تم إنشاء المشروع!**\n\n📁 [{repo_info['name']}]({repo_info['html_url']})\n\n📝 الملفات:\n{result_msg}")
+        else:
+            await update.message.reply_text(f"⚠️ {result_msg}")
+            # أرسل الكود فقط
+            await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n{code_result}")
+        return
+    
     # ============== توليد الأكواد ==============
-    # كلمات مفتاحية لتوليد الأكواد
     code_keywords = [
         "اكتب", "صمم", "أنشئ", "write", "create", "design", 
         "برمجة", "كود", "code", "program", "script", "function",
         "موقع", "website", "web", "بوت", "bot", "تطبيق", "app",
         "database", "قاعدة", "بيانات", "sql", "python", "javascript",
         "html", "css", "flutter", "bash", "shell", "api", "اندرويد",
-        "ios", "mobile", "game", "لعبة", "algorithm", "خوارزمية"
+        "ios", "mobile", "game", "لعبة", "algorithm", "خوارزمية",
+        "مشروع", "project"
     ]
     
     is_code_request = any(k in text.lower() for k in code_keywords)
     
-    if is_code_request:
+    if is_code_request and not text.startswith("أنشئ"):
         await update.message.reply_text("🖥️ جاري توليد الكود...\n\nقد يستغرق ثواني...")
         
         # تحديد اللغة
@@ -591,14 +862,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         code_result = await generate_code(text, language)
         
         # إرسال الكود
-        if len(code_result) > 4000:
-            # إذا كان الكود طويل، أرسل كملف
-            await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n📁 الكود طويل جداً، يُرسَل كملف...")
-            await update.message.reply_text(code_result)
-        else:
-            await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n{code_result}")
+        await update.message.reply_text(f"🖥️ **الكود المُولَّد:**\n\n{code_result}")
         
-        await update.message.reply_text("✅ هل تريد تعديل أو إضافة؟ 💡")
+        # سؤال إذا يريد رفع على GitHub
+        await update.message.reply_text("💾 هل تريد رفع هذا الكود على GitHub؟\n\nاكتب: `ارفع على GitHub`")
         return
     
     # ============== محادثة ذكية ==============
@@ -609,7 +876,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============== VOICE HANDLER ==============
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🎤 استلمت صوتك!\n\n🔊 جاري تحويله لنص...")
-    # يتطلب Google Speech API
     await update.message.reply_text("⚠️ تحويل الصوت يتطلب إعداد Google Speech API\n\n🎤 أرسل صوتاً وسأجيبك!")
 
 # ============== CALLBACK HANDLER ==============
@@ -673,7 +939,7 @@ def main():
         BotCommand("clear", "مسح"),
     ])
     
-    print("🤖 Mira Twin Bot مع توليد الأكواد يعمل...")
+    print("🤖 Mira Twin Bot مع GitHub يعمل...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
